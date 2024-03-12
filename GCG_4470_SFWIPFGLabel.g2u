@@ -1,0 +1,506 @@
+Program.Sub.ScreenSU.Start
+Gui.frmHeat..Create
+Gui.frmHeat..Caption("Selection")
+Gui.frmHeat..Size(4275,2070)
+Gui.frmHeat..MinX(0)
+Gui.frmHeat..MinY(0)
+Gui.frmHeat..Position(0,0)
+Gui.frmHeat..BackColor(-2147483633)
+Gui.frmHeat..MaxButton(False)
+Gui.frmHeat..MinButton(False)
+Gui.frmHeat..MousePointer(0)
+Gui.frmHeat..Event(UnLoad,cmdOK_Click)
+Gui.frmHeat.cmdOK.Create(Button)
+Gui.frmHeat.cmdOK.Size(855,375)
+Gui.frmHeat.cmdOK.Position(90,1050)
+Gui.frmHeat.cmdOK.Caption("OK")
+Gui.frmHeat.cmdOK.Event(Click,cmdOK_Click)
+Gui.frmHeat.lbl1.Create(Label,"Select Heat No :",True,1365,255,0,45,435,True,0,"Arial",8,-2147483633,0)
+Gui.frmHeat.ddlHeat.Create(DropDownList)
+Gui.frmHeat.ddlHeat.Size(2280,330)
+Gui.frmHeat.ddlHeat.Position(1440,375)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.UDT.uWIPFG.Define("BIRUNID",Long,"RUNID")
+Variable.UDT.uWIPFG.Define("SEQ",String,"SEQ")
+Variable.UDT.uWIPFG.Define("LBL_CREATE_DATE",Date,"LBL_CREATE_DATE")
+Variable.UDT.uWIPFG.Define("PART",String,"PART")
+Variable.UDT.uWIPFG.Define("LOCN",String,"LOCN")
+Variable.UDT.uWIPFG.Define("INV_QTY_REC",Float,"INV_QTY_REC")
+Variable.UDT.uWIPFG.Define("DESCR",String,"DESCR")
+Variable.UDT.uWIPFG.Define("INV_UM",String,"INV_UM")
+Variable.UDT.uWIPFG.Define("PROD_LINE",String,"PROD_LINE")
+Variable.UDT.uWIPFG.Define("LOT",String,"LOT")
+Variable.UDT.uWIPFG.Define("BIN",String,"BIN")
+Variable.UDT.uWIPFG.Define("HEAT",String,"HEAT")
+Variable.UDT.uWIPFG.Define("SERIAL",String,"SERIAL")
+Variable.UDT.uWIPFG.Define("WO",String,"WO")
+Variable.UDT.uWIPFG.Define("WO_SUFFIX",String,"WO_SUFFIX")
+Variable.UDT.uWIPFG.Define("WO_SEQ",String,"WO_SEQ")
+Variable.UDT.uWIPFG.Define("WO_DUE_DATE",Date,"WO_DUE_DATE")
+Variable.UDT.uWIPFG.Define("SO",String,"SO")
+Variable.UDT.uWIPFG.Define("SO_LINE",String,"SO_LINE")
+Variable.UDT.uWIPFG.Define("USER_ID",String,"USER_ID")
+Variable.UDT.uWIPFG.Define("CUSTOMER",String,"CUSTOMER")
+Variable.UDT.uWIPFG.Define("CUSTOMER_NAME",String,"CUSTOMER_NAME")
+Variable.UDT.uWIPFG.Define("CUST_PART",String,"CUST_PART")
+Variable.UDT.uWIPFG.Define("PO_FROM_WO",String,"PO_FROM_WO")
+Variable.UDT.uWIPFG.Define("CUST_PO_FROM_SO",String,"CUST_PO_FROM_SO")
+Variable.UDT.uWIPFG.Define("QTY_ON_LABEL",Float,"QTY_ON_LABEL")
+Variable.uGlobal.uWIPFG.Declare("uWIPFG")
+Variable.Global.iBIRunID.Declare(Long,-1)
+Variable.Global.iBILogID.Declare(Long,-1)
+Variable.Global.bSentinel.Declare(Boolean,False)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sWO.Declare(String)
+V.Local.sSuffix.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.sLot.Declare(String)
+V.Global.sOPCODE.Declare(String)
+
+Function.ODBC.Connection!con.OpenConnection(Variable.Ambient.PDSN,Variable.Ambient.PUser,Variable.Ambient.PPass)
+
+
+'WIPTOFG from GUI
+f.Intrinsic.Control.If(v.Caller.Hook,=,"15881")
+	V.Passed.Global.Set("")
+	f.Intrinsic.Control.CallSub(loadheat)
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,"33900")
+	f.Intrinsic.Control.If(V.Passed.Global.trim,<>,"")
+		f.Intrinsic.String.Split(Variable.Passed.Global,"*@*",V.Local.sRet)
+		V.Local.sWO.Set(V.Local.sRet(0))
+		f.Intrinsic.String.Split(V.Local.sWO,"-",V.Local.sWO)
+		f.Intrinsic.Control.If(V.Local.sRet(3).trim,<>,V.Local.sRet(4).trim)	
+			V.Local.sWO.Set(V.Local.sWO(0))
+			V.Local.sSuffix.Set(V.Local.sWO(1))
+			Variable.Passed.GLOBAL.Set("")
+			F.Intrinsic.String.Build("select top 1 auto_lot  from Jobs_In_Proc_Aux where USER_CHG = '{0}' order by id desc",V.Local.sRet(2),V.Local.sSql)
+			F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+			f.Intrinsic.Control.if(v.ODBC.con!rst.EOF,=,False)
+				v.Local.sLot.set(v.ODBC.con!rst.FieldVal!auto_lot)
+				f.Intrinsic.String.Build("Insert Into GCG_4470_SFWIPFG (Job,suffix, Lot,Heat,Processed,Qty) values ('{0}','{1}','{2}','{3}',0,{4})",V.Local.sWO,V.Local.sSuffix,v.Local.sLot,V.Local.sRet(3).trim,V.Local.sRet(1),V.Local.sSQL)
+				f.ODBC.Connection!con.Execute(V.Local.sSQL)		
+			f.Intrinsic.Control.endif
+			F.ODBC.con!rst.Close
+		f.Intrinsic.Control.EndIf 	
+	f.Intrinsic.Control.EndIf 
+f.Intrinsic.Control.elseIf(v.Caller.Hook,=,"38130")
+	f.Intrinsic.Control.CallSub(online_update)
+f.Intrinsic.Control.Else
+	Function.Intrinsic.Control.CallSub(Loaddata)
+f.Intrinsic.Control.EndIf 
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_SF_WIP_FG_Label.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.LoadData.Start
+F.Intrinsic.Control.SetErrorHandler("LoadData_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.sHeatTemp.Declare(String)
+V.Local.iUB.Declare(Long)
+
+'Getting run ID passed down
+V.Global.iBIRunID.Set(V.Passed.DATA-GAB-0)
+'Getting log ID passed down
+V.Global.iBILogID.Set(V.Passed.DATA-GAB-1)
+'Getting Sentinel flag passed down
+Variable.Global.bSentinel.Set(Variable.Passed.DATA-GAB-2)
+
+V.uGlobal.uWIPFG.Redim(-1,-1)
+
+Variable.Local.sRet.Declare(String)
+V.Local.sWO.Declare(String)
+V.Local.sSuffix.Declare(String)
+
+
+'
+'F.Intrinsic.Debug.InvokeDebugger
+'
+'F.Intrinsic.Debug.Stop
+
+'f.Intrinsic.Debug.DumpVariableList 
+
+'Function.Intrinisic.Variable.ListCallerVars(Variable.Local.sRet)
+
+
+'Loading data from Y table, as being label being printed from Menu, Selecting all fields as all fields are transferred over from Y table to Z table
+F.Intrinsic.String.Build("Select * From Y_SF_WIPTOFG where RUNID = {0}",V.Global.iBIRunID,V.Local.sSql)
+F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+F.Intrinsic.Variable.LoadUDTFromRecordset("con","rst","V.uGlobal.uWIPFG",True,0)
+F.ODBC.con!rst.Close
+
+F.Intrinsic.Control.If(V.uGlobal.uWIPFG.UBound,>,-1)
+
+'	'update OLD HEAT
+'	F.Intrinsic.String.Build("select * from  GCG_4470_SFWIPFG where JOB = '{0}' and suffix = '{1}' and Processed = 0 ",V.uGlobal.uWIPFG(0)!WO,V.uGlobal.uWIPFG(0)!WO_SUFFIX,V.Local.sSql)
+'	F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+'	f.Intrinsic.Control.if(v.ODBC.con!rst.EOF,=,False)
+'			f.Intrinsic.Control.If(V.uGlobal.uWIPFG(0)!Heat,<>,v.ODBC.con!rst.FieldVal!Heat)
+'				V.uGlobal.uWIPFG(0)!HEAT.Set(v.ODBC.con!rst.FieldVal!Heat)
+'			f.Intrinsic.Control.Else 
+'				F.Intrinsic.String.Build("update GCG_4470_SFWIPFG set Processed = 1 where JOB = '{0}' and suffix = '{1}'" ,V.uGlobal.uWIPFG(0)!WO,V.uGlobal.uWIPFG(0)!WO_SUFFIX,V.Local.sSql)
+'				f.ODBC.Connection!con.Execute(V.Local.sSQL)		
+'			f.Intrinsic.Control.EndIf 
+'	f.Intrinsic.Control.EndIf 
+'	F.ODBC.con!rst.Close
+
+'update OLD HEAT
+	F.Intrinsic.String.Build("select * from  GCG_4470_SFWIPFG where Lot = '{0}'",V.uGlobal.uWIPFG(0)!Lot,V.Local.sSql)
+	F.ODBC.Connection!con.OpenLocalRecordsetRW("rst",V.Local.sSql)
+	f.Intrinsic.Control.if(v.ODBC.con!rst.EOF,=,False)
+		f.Intrinsic.Control.If(V.uGlobal.uWIPFG(0)!Heat.Trim,<>,v.ODBC.con!rst.FieldValTrim!Heat)
+			F.ODBC.Con!rst.Set!Heat_OLD(V.uGlobal.uWIPFG(0)!HEAT)
+			V.uGlobal.uWIPFG(0)!HEAT.Set(v.ODBC.con!rst.FieldValTrim!Heat)
+		f.Intrinsic.Control.Else 
+			F.ODBC.Con!rst.Set!Processed(1)
+		f.Intrinsic.Control.EndIf 
+		f.ODBC.con!rst.Update 
+	f.Intrinsic.Control.EndIf 
+	F.ODBC.con!rst.Close
+	
+
+''update OLD HEAT
+'	F.Intrinsic.String.Build("select * from  GCG_4470_SFWIPFG where Lot = '{0}'",V.uGlobal.uWIPFG(0)!Lot,V.Local.sSql)
+'	F.ODBC.Connection!con.OpenLocalRecordsetRW("rst",V.Local.sSql)
+'	f.Intrinsic.Control.if(v.ODBC.con!rst.EOF,=,False)
+''			f.Intrinsic.Control.If(V.uGlobal.uWIPFG(0)!Heat,<>,v.ODBC.con!rst.FieldVal!Heat)
+'
+'				F.ODBC.Con!rst.Set!Heat_OLD(V.uGlobal.uWIPFG(0)!HEAT)
+'				V.uGlobal.uWIPFG(0)!HEAT.Set(v.ODBC.con!rst.FieldVal!Heat)
+'				f.ODBC.con!rst.Update 
+'				
+''			f.Intrinsic.Control.Else 
+''				F.ODBC.Con!rst.Set!Processed(1)
+''				f.ODBC.con!rst.Update 
+''			f.Intrinsic.Control.EndIf 
+'	f.Intrinsic.Control.EndIf 
+'	F.ODBC.con!rst.Close
+
+    'Checking to see if sequence being printed is Codesoft label
+    Function.Intrinsic.Control.If(Variable.Global.bSentinel,=,True)
+        'Stopping Logging
+        F.Global.BI.StopLogging(V.Global.iBILogID)
+
+        'Printing Codesoft label
+        F.Global.BI.PrintCodesoftLabelFromUDT(V.Global.iBIRunID,V.Global.iBILogID,"uGlobal.uWIPFG","","",True)
+    Function.Intrinsic.Control.Else
+        'Setting field refs of UDT for Z table fields that don't match Y table field names
+        F.Intrinsic.Variable.SetUDTFieldReference(V.uGlobal.uWIPFG!BIRUNID,"BIRUNID")
+
+        'Opening table and writing data out for Crystal/Bartender
+        F.ODBC.Connection!con.OpenLocalRecordsetRW("rst","Z_SF_WIPTOFG")
+        F.Intrinsic.Variable.saveudttorecordset("con","rst","v.uglobal.uWIPFG")
+        F.ODBC.con!rst.Close
+
+        'Stopping Logging
+        F.Global.BI.StopLogging(V.Global.iBILogID)
+
+        'Printing Crystal Report
+        F.Intrinsic.Control.CallSub(Callbi)
+    Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Function.Intrinsic.Control.CallSub(Unload)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("LoadData_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_SF_WIP_FG_Label.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.LoadData.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_SF_WIP_FG_Label.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    Function.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Unload.End
+
+Program.Sub.CallBI.Start
+F.Intrinsic.Control.SetErrorHandler("CallBI_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iRet.Declare(Long)
+
+Function.Global.BI.RunReportPreProcessor(V.Global.iBIRunID,V.Global.iBILogID,"","","",-1,True,"",-1,"",-1,"","",v.Local.iRet)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CallBI_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: BIR_SF_WIP_FG_Label.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CallBI.End
+
+Program.Sub.cmdOK_Click.Start
+F.Intrinsic.Control.SetErrorHandler("frmHeat_UnLoad_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+
+
+'F.Intrinsic.Debug.InvokeDebugger
+'
+'F.Intrinsic.Debug.Stop
+
+f.Intrinsic.Control.If(v.Screen.frmHeat!ddlHeat.Text,<>,"")
+
+	f.Intrinsic.String.Build("{0}*@*{1}*@*{2}*@*{3}*@*{4}",Variable.Passed.000004,Variable.Passed.000001,Variable.Passed.009993,v.Screen.frmHeat!ddlHeat.Text,V.uGlobal.uWIPFG(0)!Heat,Variable.Passed.GLOBAL)
+	
+'	f.Intrinsic.Control.If(V.uGlobal.uWIPFG(0)!LOT,<>,v.Screen.frmHeat!ddlHeat.Text)
+'		f.Intrinsic.String.Build("Insert Into GCG_4470_SFWIPFG (Select WO,WO_Suffix,part,locn,lot,Bin,Serial,Heat,0,'New Heat' NewHeat,Qty_ON_Label  From Y_SF_WIPTOFG where RUNID = {0}",V.Global.iBIRunID,V.Local.sSQL)
+'	f.Intrinsic.Control.EndIf 
+'	Function.Intrinsic.Control.CallSub(Loaddata)
+	f.Intrinsic.Control.CallSub(unload)
+f.Intrinsic.Control.Else
+	f.Intrinsic.UI.Msgbox("Please select Heat from the list")
+'	v.passed.777777.set(1) 
+f.Intrinsic.Control.EndIf 
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("frmHeat_UnLoad_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4470_SFWIPFGLabel.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdOK_Click.End
+
+Program.Sub.LoadHeat.Start
+F.Intrinsic.Control.SetErrorHandler("LoadHeat_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.sWO.Declare(String)
+V.Local.sSuffix.Declare(String)
+Variable.Local.sRet.Declare(String)
+V.Local.sSql.Declare(String)
+
+
+f.Intrinsic.String.Split(Variable.Passed.000004,"-",V.Local.sWO)
+V.Local.sWO.Set(V.Local.sWO(0))
+V.Local.sSuffix.Set(V.Local.sWO(1))
+
+
+'Check company Option for OPCODE
+
+F.Intrinsic.String.Build("select F_Boolean,TEXT1 from v_op_header where ID = '401116' and sequence in ('0000','0001') order by sequence","",V.Local.sSql)
+F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+f.Intrinsic.Control.if(v.ODBC.con!rst.EOF,=,False)
+		f.Intrinsic.Control.If(v.ODBC.con!rst.FieldVal!F_Boolean,=,0)
+			f.Intrinsic.UI.Msgbox("Company Option not setup for AUTOWIP")
+'			f.Intrinsic.Variable.AddRV("bRET","False")
+			f.Intrinsic.Control.ExitSub 
+		f.Intrinsic.Control.Else
+			f.ODBC.con!rst.MoveNext
+			f.Intrinsic.Control.If(v.ODBC.con!rst.FieldValTrim!TEXT1,<>,"") 
+				V.Global.sOPCODE.Set(v.ODBC.con!rst.FieldValTrim!TEXT1)
+			f.Intrinsic.Control.Else 
+				f.Intrinsic.UI.Msgbox("OPCODE not setup for AUTOWIP")
+'				f.Intrinsic.Variable.AddRV("bRET","False")
+				f.Intrinsic.Control.ExitSub 
+			f.Intrinsic.Control.endif
+		f.Intrinsic.Control.endif
+f.Intrinsic.Control.Endif
+F.ODBC.con!rst.Close
+
+'CHK WIPTOFG Seaquence. if dont match exit out
+f.Intrinsic.Control.If(V.Global.sOPCODE,<>, Variable.Passed.009001.Trim)
+	f.Intrinsic.Control.ExitSub
+f.Intrinsic.Control.Endif
+
+'F.Intrinsic.String.Build("select ITEM_HISTORY.Heat from ITEM_HISTORY join Y_SF_WIPTOFG on job = WO and suffix = WO_Suffix where Code_Transaction = 'J55' and RUNID ={0}",V.Passed.DATA-GAB-0,V.Local.sSql)
+F.Intrinsic.String.Build("select distinct ITEM_HISTORY.Heat from ITEM_HISTORY  where Code_Transaction = 'J55' and JOB = '{0}' and suffix = '{1}' and rtrim(ltrim(ITEM_HISTORY.Heat))<>''",V.Local.sWO,V.Local.sSuffix,V.Local.sSql)
+F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+f.Intrinsic.Control.DoUntil(v.ODBC.con!rst.EOF,=,True)
+		gui.frmHeat.ddlHeat.AddItem(v.ODBC.con!rst.FieldVal!Heat)
+	f.ODBC.con!rst.MoveNext 
+f.Intrinsic.Control.loop
+F.ODBC.con!rst.Close
+
+f.Intrinsic.Control.If(v.Screen.frmHeat!ddlHeat.ListCount,=,1)
+	gui.frmHeat.ddlHeat.ListIndex(0)
+f.Intrinsic.Control.ElseIf(v.Screen.frmHeat!ddlHeat.ListCount,=,0)
+	f.Intrinsic.UI.Msgbox("Heat not found")
+	F.Intrinsic.Control.ExitSub
+f.Intrinsic.Control.endif
+gui.frmHeat..Show
+
+
+'	Variable.Passed.GLOBAL
+'==15881================
+'Variable.Passed.009993  USER
+'Job-suffix = Variable.Passed.000004
+'Variable.Passed.000001  QTY
+	
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("LoadHeat_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4470_SFWIPFGLabel.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.LoadHeat.End
+
+Program.Sub.Online_Update.Start
+F.Intrinsic.Control.SetErrorHandler("Online_Update_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.sFileName.Declare(String)
+V.Local.sParameters.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sLot.Declare(String)
+V.Local.sPart.Declare(string)
+V.Local.sRev.Declare(string)
+
+
+
+F.Intrinsic.Debug.Stop
+
+V.Local.sSql.Set("Select * From GCG_4470_SFWIPFG where Processed = 0")
+F.ODBC.Connection!con.OpenLocalRecordsetRO("rst",V.Local.sSql)
+f.Intrinsic.Control.DoUntil(v.ODBC.con!rst.EOF,=,True)
+	f.Intrinsic.Control.If(v.ODBC.con!rst.FieldValTrim!Heat_Old,<>,v.ODBC.con!rst.FieldValTrim!Heat)
+		f.Intrinsic.String.Build("select * from Item_master where lot = '{0}'",v.ODBC.con!rst.FieldVal!Lot,V.Local.sSql)
+		F.ODBC.Connection!con.OpenLocalRecordsetRO("rst1",V.Local.sSql)
+		f.Intrinsic.Control.if(v.ODBC.con!rst1.EOF,=,False)
+		
+		
+	'		F.Intrinsic.String.Concat(V.ambient.DblQuote,V.Caller.CompanyCode,"Issrec.txt",V.ambient.DblQuote,V.Local.sFileName)
+			F.Intrinsic.String.Concat(V.Caller.CompanyCode,"Issrec.txt",V.Local.sFileName)
+			F.Intrinsic.String.Concat(V.Caller.FilesDir,"\",V.Local.sFileName,V.Local.sFile)
+			
+	'PART
+	'REV
+	'LOCN
+	'QTY
+	'REF
+	'LOT
+	'BIN
+	'HEAT
+	'SERIAL
+	'ISS-REC.....I for issue/R for receipt
+	'DROP......Y for is a drop
+	'DROP-SUFFIX
+	'DROP-QTY
+			
+	'		'Issue inventory from sPart/sLoc/sBin
+	'		F.Intrinsic.String.Concat(V.local.sPart,","," ",",",V.local.sLoc,",",V.local.fQty,","," ",","," ",V.Local.sParameters)
+	'		F.Intrinsic.String.Concat(V.Local.sParameters,",",V.local.sBin,","," ",","," ",",","I",V.Local.sParameters)
+	'		F.Intrinsic.String.Concat(V.Local.sParameters,",","N",","," ",","," ",",",V.Local.sParameters)
+'			F.Intrinsic.String.GSSPartString(v.ODBC.con!rst1.FieldValTrim!Part,V.Local.sRev,V.Local.sPart)
+			
+
+
+			f.Intrinsic.String.RPad(v.ODBC.con!rst1.FieldVal!Part," ",20,V.Local.sPart)
+
+'			V.Local.sPart.Left17
+
+			f.Intrinsic.String.Right(V.Local.sPart,3,V.Local.sRev)
+			f.Intrinsic.String.Left(V.Local.sPart,17,V.Local.sPart)
+			
+	
+			f.Intrinsic.String.Build("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},,",V.Local.sPart,V.Local.sRev,v.ODBC.con!rst1.FieldValTrim!Location,v.ODBC.con!rst.FieldVal!Qty,v.ODBC.con!rst.FieldValTrim!JOB,v.ODBC.con!rst.FieldValTrim!Lot,v.ODBC.con!rst1.FieldValTrim!Bin,v.ODBC.con!rst.FieldValTrim!Heat_Old,v.ODBC.con!rst1.FieldValTrim!Serial_Number,"I","N","","",V.Local.sParameters)
+			f.Intrinsic.String.Build("{0}{1}{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},,",V.Local.sParameters,v.Ambient.NewLine,V.Local.sPart,V.Local.sRev,v.ODBC.con!rst1.FieldValTrim!Location,v.ODBC.con!rst.FieldVal!Qty,v.ODBC.con!rst.FieldValTrim!JOB,v.ODBC.con!rst.FieldValTrim!Lot,v.ODBC.con!rst1.FieldValTrim!Bin,v.ODBC.con!rst.FieldValTrim!Heat,v.ODBC.con!rst1.FieldValTrim!Serial_Number,"R","N","","",V.Local.sParameters)
+	
+			F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sParameters)
+			F.Intrinsic.Task.LaunchGSSSync("WIR104","-c",V.Local.sFileName)
+			f.Intrinsic.String.Build("update GCG_4470_SFWIPFG set Processed = 1 where Lot = '{0}'",v.ODBC.con!rst.FieldValTrim!Lot,V.Local.sSql)
+			f.ODBC.Connection!con.Execute(V.Local.sSql)
+			
+	'		f.Intrinsic.String.Build("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},,",v.ODBC.con!rst1.FieldValTrim!Part,"",v.ODBC.con!rst1.FieldValTrim!Location,v.ODBC.con!rst.FieldVal!Qty,v.ODBC.con!rst.FieldValTrim!JOB,v.ODBC.con!rst.FieldValTrim!Lot,v.ODBC.con!rst1.FieldValTrim!Bin,v.ODBC.con!rst.FieldValTrim!Heat,v.ODBC.con!rst1.FieldValTrim!Serial_Number,"R","N","","",V.Local.sParameters)
+	'		F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sParameters)
+	'		F.Intrinsic.Task.LaunchGSSSync("WIR104","-c",V.Local.sFileName)
+'	
+'			f.Intrinsic.Control.If(V.Local.sLot,=,"")
+'				f.Intrinsic.String.Build("('{0}'",v.ODBC.con!rst.FieldVal!Lot,V.Local.sLot)
+'			f.Intrinsic.Control.Else
+'				f.Intrinsic.String.Build("{0},'{1}'",V.Local.sLot,v.ODBC.con!rst.FieldVal!Lot,V.Local.sLot)
+'			f.Intrinsic.Control.EndIf 
+		f.Intrinsic.Control.endif
+		F.ODBC.con!rst1.Close
+	f.Intrinsic.Control.EndIf	
+	f.ODBC.con!rst.MoveNext 
+f.Intrinsic.Control.Loop
+
+'Update batch - commenting in case the process stops in the loop
+'f.Intrinsic.Control.If(V.Local.sLot,<>,"")
+'	f.Intrinsic.String.Build("{0})",V.Local.sLot,V.Local.sLot)
+'	f.Intrinsic.String.Build("update GCG_4470_SFWIPFG set Processed = 1 where Lot IN {0}",V.Local.sLot,V.Local.sSql)
+''	f.Intrinsic.String.Build("delete from GCG_4470_SFWIPFG where Lot IN {0}",V.Local.sLot,V.Local.sSql)
+'	f.ODBC.Connection!con.Execute(V.Local.sSql)
+'f.Intrinsic.Control.EndIf
+
+
+F.ODBC.con!rst.Close
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Online_Update_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4470_SFWIPFGLabel.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Online_Update.End
+
+Program.Sub.Comments.Start
+${$0$}$SF_WIP_FG_Label$}$MITCH$}$1/1/1900$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$WiptoFGLabel
+ReportID:1835
+Program.Sub.Comments.End
+
